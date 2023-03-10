@@ -1,17 +1,7 @@
 import { StatusBar } from "expo-status-bar";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import React, { useCallback, useState } from "react";
+import React from "react";
 import socket from "./utils/socket";
-
-import {
-  StyleSheet,
-  Text,
-  View,
-  Pressable,
-  TextInput,
-  Button,
-} from "react-native";
-
+import { StyleSheet, Text, View, Pressable, TextInput } from "react-native";
 import Modal from "react-native-modal";
 
 export default function Home({ navigation }: any) {
@@ -21,11 +11,8 @@ export default function Home({ navigation }: any) {
 
   const join = async () => {
     if (text.length >= 3 && text.length <= 20) {
-      await AsyncStorage.setItem("username", text);
-
       socket.emit("user join", text);
-
-      navigation.push("Chat");
+      navigation.push("Chat", { localuser: text });
     } else {
       handleModal();
     }

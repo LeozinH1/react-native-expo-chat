@@ -1,9 +1,11 @@
 import { StatusBar } from "expo-status-bar";
 import React, { useLayoutEffect, useState, useEffect } from "react";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import socket from "./utils/socket";
 import notifee, { AndroidImportance, EventType } from "@notifee/react-native";
 import MessageComponent from "./components/MessageComponent";
+import randomString from "./utils/randomString";
+import { Audio } from "expo-av";
+
 import {
   StyleSheet,
   Text,
@@ -16,27 +18,37 @@ import {
 interface IChatMessage {
   message: string;
   username: string;
-  status: boolean;
+  me: boolean;
   id: string;
 }
 
-export default function Chat({ navigation }: any) {
-  const [user, setUser] = useState("");
+export default function Chat({ route, navigation }: any) {
   const [text, onChangeText] = React.useState("");
+  const { localuser } = route.params;
   const [chatMessages, setChatMessages] = useState<IChatMessage[]>(
     [] as IChatMessage[]
   );
+  const [sound, setSound] = React.useState<Audio.Sound>();
 
-  const getUsername = async () => {
-    try {
-      const value = await AsyncStorage.getItem("username");
-      if (value !== null) {
-        setUser(value);
-      }
-    } catch (e) {
-      console.error("Error while loading username!");
-    }
-  };
+  async function playSound() {
+    console.log("Loading Sound");
+    const { sound } = await Audio.Sound.createAsync(
+      require("./assets/notify.mp3")
+    );
+    setSound(sound);
+
+    console.log("Playing Sound");
+    await sound.playAsync();
+  }
+
+  React.useEffect(() => {
+    return sound
+      ? () => {
+          console.log("Unloading Sound");
+          sound.unloadAsync();
+        }
+      : undefined;
+  }, [sound]);
 
   const createChannelId = async () => {
     const channelId = await notifee.createChannel({
@@ -85,43 +97,25 @@ export default function Chat({ navigation }: any) {
   });
 
   const sendMessage = () => {
-    socket.emit("chat message", text, user);
-    onChangeText("");
-  };
-
-  useLayoutEffect(() => {
-    getUsername();
-  }, []);
-
-  const makeid = (length: number) => {
-    let result = "";
-    const characters =
-      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-    const charactersLength = characters.length;
-    let counter = 0;
-    while (counter < length) {
-      result += characters.charAt(Math.floor(Math.random() * charactersLength));
-      counter += 1;
+    if (text.length > 0) {
+      socket.emit("chat message", text, localuser);
+      onChangeText("");
     }
-    return result;
   };
 
   useEffect(() => {
     socket.on("chat message", (message: string, username: string) => {
-      // displayNotification(username, message);
-
-      const id = makeid(10);
-
-      if (username.toString() == user.toString()) {
-        console.log("true");
-      } else {
-        console.log("false");
+      if (username !== localuser) {
+        playSound();
+        // displayNotification(username, message);
       }
+
+      const id = randomString(10);
 
       let new_message: IChatMessage = {
         username: username,
         message: message,
-        status: username == user.toString(),
+        me: username == localuser,
         id: id,
       };
 
@@ -133,7 +127,7 @@ export default function Chat({ navigation }: any) {
     <View style={styles.container}>
       <StatusBar style="auto" backgroundColor="#7159c1" />
 
-      <Text style={styles.h1}>Olá {user}!</Text>
+      <Text style={styles.h1}>Olá {localuser}!</Text>
 
       {chatMessages && (
         <FlatList
@@ -142,7 +136,7 @@ export default function Chat({ navigation }: any) {
             <MessageComponent
               message={item.message}
               username={item.username}
-              status={item.status}
+              me={item.me}
               id={item.id}
             />
           )}
